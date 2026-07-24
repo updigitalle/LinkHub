@@ -53,16 +53,29 @@ export async function POST(request) {
       .from("links")
       .insert({ original_url: url, slug });
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === "23505") {
+        return NextResponse.json(
+          { error: "Este slug já está em uso. Escolha outro." },
+          { status: 409 }
+        );
+      }
+      throw error;
+    }
+
+    const isUsableHost = (h) => !!h && !h.startsWith("0.0.0.0");
 
     const forwardedHost = request.headers.get("x-forwarded-host");
-    const forwardedProto = request.headers.get("x-forwarded-proto");
     const host = request.headers.get("host");
+    const forwardedProto = request.headers.get("x-forwarded-proto");
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-    const effectiveHost = forwardedHost || host || appUrl?.replace(/^https?:\/\//, "");
+    const effectiveHost = [forwardedHost, host].find(isUsableHost) ||
+      appUrl?.replace(/^https?:\/\//, "");
     const effectiveProto = forwardedProto || (effectiveHost && effectiveHost.startsWith("localhost") ? "http" : "https");
-    const shortUrl = appUrl ? `${appUrl}/${slug}` : `${effectiveProto}://${effectiveHost}/${slug}`;
+    const shortUrl = appUrl
+      ? `${appUrl.replace(/\/$/, "")}/${slug}`
+      : `${effectiveProto}://${effectiveHost}/${slug}`;
 
     return NextResponse.json({ success: true, shortUrl });
   } catch (err) {
