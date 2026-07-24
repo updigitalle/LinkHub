@@ -55,9 +55,13 @@ export async function POST(request) {
 
     if (error) throw error;
 
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const forwardedProto = request.headers.get("x-forwarded-proto");
     const host = request.headers.get("host");
-    const protocol = host && host.startsWith("localhost") ? "http" : "https";
-    const shortUrl = `${protocol}://${host}/${slug}`;
+
+    const effectiveHost = forwardedHost || host;
+    const effectiveProto = forwardedProto || (effectiveHost && effectiveHost.startsWith("localhost") ? "http" : "https");
+    const shortUrl = `${effectiveProto}://${effectiveHost}/${slug}`;
 
     return NextResponse.json({ success: true, shortUrl });
   } catch (err) {
