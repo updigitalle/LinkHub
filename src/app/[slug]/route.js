@@ -1,27 +1,30 @@
 import { NextResponse } from "next/server";
-import { getPool, ensureSchema } from "@/lib/db";
+import { getSupabase } from "@/lib/db";
 
 export async function GET(request, { params }) {
   try {
-    await ensureSchema();
     const { slug } = await params;
 
-    const pool = getPool();
-    const [rows] = await pool.query(
-      "SELECT original_url FROM links WHERE slug = ?",
-      [slug]
-    );
+    const supabase = getSupabase();
 
-    if (rows.length === 0) {
+    const { data, error } = await supabase
+      .from("links")
+      .select("id, original_url")
+      .eq("slug", slug)
+      .maybeSingle();
+
+    if (error || !data) {
       return NextResponse.redirect(new URL("/", request.url));
     }
 
-    await pool.query(
-      "UPDATE links SET clicks = clicks + 1 WHERE slug = ?",
-      [slug]
-    );
+    const { error: updateError } = await supabase.rpc("increment_clicks", {
+      slug_param: slug,
+    });
+    if (updateError) {
+      console.error("Erro ao atualizar cliques:", updateError.message);
+    }
 
-    return NextResponse.redirect(rows[0].original_url, 302);
+    return NextResponse.redirect(data.original_url, 302);
   } catch (err) {
     console.error("Erro no redirecionamento:", err.message);
     return NextResponse.redirect(new URL("/", request.url));

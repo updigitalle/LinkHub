@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getPool, ensureSchema } from "@/lib/db";
+import { getSupabase } from "@/lib/db";
 import {
   generateUniqueSlug,
   isValidCustomSlug,
@@ -8,15 +8,13 @@ import {
 
 export async function POST(request) {
   try {
-    await ensureSchema();
-
     const { url, slug: customSlug } = await request.json();
 
     if (!isValidUrl(url)) {
       return NextResponse.json({ error: "URL inválida" }, { status: 400 });
     }
 
-    const pool = getPool();
+    const supabase = getSupabase();
     let slug;
 
     if (customSlug && customSlug.trim() !== "") {
@@ -26,11 +24,11 @@ export async function POST(request) {
           { status: 400 }
         );
       }
-      const [rows] = await pool.query(
-        "SELECT COUNT(*) AS total FROM links WHERE slug = ?",
-        [customSlug]
-      );
-      if (rows[0].total > 0) {
+      const { count } = await supabase
+        .from("links")
+        .select("*", { count: "exact", head: true })
+        .eq("slug", customSlug);
+      if (count > 0) {
         return NextResponse.json(
           { error: "Este slug já está em uso. Escolha outro." },
           { status: 409 }
@@ -41,10 +39,11 @@ export async function POST(request) {
       slug = await generateUniqueSlug();
     }
 
-    await pool.query(
-      "INSERT INTO links (original_url, slug) VALUES (?, ?)",
-      [url, slug]
-    );
+    const { error } = await supabase
+      .from("links")
+      .insert({ original_url: url, slug });
+
+    if (error) throw error;
 
     const host = request.headers.get("host");
     const protocol = host && host.startsWith("localhost") ? "http" : "https";
