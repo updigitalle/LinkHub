@@ -6,8 +6,18 @@ import {
   isValidUrl,
 } from "@/lib/slug";
 
+function checkEnvVars() {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+    const missing = [];
+    if (!process.env.SUPABASE_URL) missing.push("SUPABASE_URL");
+    if (!process.env.SUPABASE_ANON_KEY) missing.push("SUPABASE_ANON_KEY");
+    throw new Error(`Variáveis de ambiente ausentes: ${missing.join(", ")}`);
+  }
+}
+
 export async function POST(request) {
   try {
+    checkEnvVars();
     const { url, slug: customSlug } = await request.json();
 
     if (!isValidUrl(url)) {
@@ -51,9 +61,9 @@ export async function POST(request) {
 
     return NextResponse.json({ success: true, shortUrl });
   } catch (err) {
-    console.error("Erro ao encurtar:", err.message);
+    console.error("Erro ao encurtar:", err);
     return NextResponse.json(
-      { error: "Erro ao encurtar o link. Tente novamente." },
+      { error: err.message || "Erro ao encurtar o link. Tente novamente." },
       { status: 500 }
     );
   }
